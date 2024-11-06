@@ -8,6 +8,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/imgui)
 
 
 add_executable(streamDecoder
+    main.cpp
     decoder.cpp
     inspector.cpp
 )
