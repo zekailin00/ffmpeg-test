@@ -133,6 +133,7 @@ bool Decoder::GetLatestFrame(unsigned char** outImage, int* outWidth, int* outHe
                 *outImage  = frame_rgb->data[0];
                 *outHeight = frame->height;
                 *outWidth  = frame->width;
+                printf("Compression rate: %f percent\n", packet->size * 1.0f / (frame->width * frame->height * 3.0f) * 100);
                 return true;
             }
 
