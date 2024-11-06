@@ -1,0 +1,26 @@
+
+
+file(GLOB IMGUI_SRC "*.cpp")
+file(GLOB IMGUI_HEADER "*.h")
+
+message("-- ImGUI sources: ${IMGUI_SRC}")
+message("-- ImGUI headers: ${IMGUI_HEADER}")
+
+add_library(imgui
+    ${IMGUI_SRC}
+    ${IMGIU_HEADER}
+)
+
+set(OpenGL_GL_PREFERENCE "GLVND")
+find_package(glfw3 3.3 REQUIRED)
+find_package(OpenGL REQUIRED)
+
+
+target_include_directories(imgui PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(imgui
+    OpenGL::GLX
+    glfw 
+)

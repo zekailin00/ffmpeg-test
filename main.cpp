@@ -65,12 +65,12 @@ int main(int argc, char *argv[])
 
     int width = codec_ctx->width;
     int height = codec_ctx->height;
-    int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, width, height, 1);
+    int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, width, height, 1);
     uint8_t *buffer = (uint8_t *) av_malloc(num_bytes * sizeof(uint8_t));
 
-    av_image_fill_arrays(frame_rgb->data, frame_rgb->linesize, buffer, AV_PIX_FMT_RGB24, width, height, 1);
+    av_image_fill_arrays(frame_rgb->data, frame_rgb->linesize, buffer, AV_PIX_FMT_RGBA, width, height, 1);
 
-    struct SwsContext *sws_ctx = sws_getContext(width, height, codec_ctx->pix_fmt, width, height, AV_PIX_FMT_RGB24, SWS_BILINEAR, NULL, NULL, NULL);
+    struct SwsContext *sws_ctx = sws_getContext(width, height, codec_ctx->pix_fmt, width, height, AV_PIX_FMT_RGBA, SWS_BILINEAR, NULL, NULL, NULL);
 
     int frame_count = 0;
     char output_filename[1024];
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
                     }
                     frame_rgb->width = frame->width;
                     frame_rgb->height = frame->height;
-                    frame_rgb->format = AV_PIX_FMT_RGB24;
+                    frame_rgb->format = AV_PIX_FMT_RGBA;
 
                     snprintf(output_filename, sizeof(output_filename), output_filename_template, frame_count);
                     FILE *file = fopen(output_filename, "wb");
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
                     png_ctx->bit_rate = codec_ctx->bit_rate;
                     png_ctx->width = width;
                     png_ctx->height = height;
-                    png_ctx->pix_fmt = AV_PIX_FMT_RGB24;
+                    png_ctx->pix_fmt = AV_PIX_FMT_RGBA;
                     png_ctx->time_base = format_ctx->streams[video_stream_index]->time_base;
 
                     if (avcodec_open2(png_ctx, png_codec, NULL) < 0) {

@@ -3,12 +3,18 @@ project(FFmpegDecoder)
 
 set (CMAKE_CXX_STANDARD 17)
 
-add_executable(streamDecoder
-    main.cpp
-)
-
-file(GLOB FFMPEG_LIBS "${CMAKE_SOURCE_DIR}/ffmpeg/lib/*.a")
-
 add_subdirectory(ffmpeg)
+add_subdirectory(${CMAKE_SOURCE_DIR}/imgui)
 
-target_link_libraries(streamDecoder PUBLIC FFMPEG)
+
+add_executable(streamDecoder
+    decoder.cpp
+    inspector.cpp
+)
+target_link_libraries(streamDecoder PUBLIC FFMPEG imgui)
+
+
+add_executable(streamServer
+    server.cpp
+)
+target_link_libraries(streamServer PUBLIC FFMPEG)
