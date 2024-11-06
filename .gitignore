@@ -1,0 +1,6 @@
+*log.txt
+*.mp4
+*.mpeg
+scratch/*
+build/*
+ffmpeg/lib/*.a
