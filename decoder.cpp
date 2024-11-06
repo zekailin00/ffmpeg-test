@@ -73,6 +73,12 @@ int initializeCodec(AVFormatContext *fmt_ctx)
         return -1;
     }
 
+    sws_ctx = sws_getContext(
+        codec_ctx->width, codec_ctx->height, codec_ctx->pix_fmt,
+        codec_ctx->width, codec_ctx->height, AV_PIX_FMT_RGBA,
+        SWS_BILINEAR, NULL, NULL, NULL
+    );
+
     return 0;
 }
 
@@ -168,29 +174,22 @@ int main(int argc, char *argv[])
 
     if (initializeCodec(format_ctx) < 0)
         return -1;
-
     
     packet = av_packet_alloc();
     frame = av_frame_alloc();
     frame_rgb = av_frame_alloc();
-
-    int width = codec_ctx->width;
-    int height = codec_ctx->height;
-    int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, width, height, 1);
-    uint8_t *buffer = (uint8_t *) av_malloc(num_bytes * sizeof(uint8_t));
-
-    av_image_fill_arrays(frame_rgb->data, frame_rgb->linesize, buffer, AV_PIX_FMT_RGBA, width, height, 1);
-
-    sws_ctx = sws_getContext(
-        codec_ctx->width, codec_ctx->height, codec_ctx->pix_fmt,
-        codec_ctx->width, codec_ctx->height, AV_PIX_FMT_RGBA,
-        SWS_BILINEAR, NULL, NULL, NULL
-    );
+    frame_rgb->format = AV_PIX_FMT_RGBA;
+    frame_rgb->width  = codec_ctx->width;
+    frame_rgb->height = codec_ctx->height;
+    int ret = av_frame_get_buffer(frame_rgb, 0);
+    if (ret < 0) {
+        fprintf(stderr, "Could not allocate the video frame data\n");
+        exit(1);
+    }
 
     renderLoop(receiveLoop, nullptr);
 
     sws_freeContext(sws_ctx);
-    av_free(buffer);
     av_frame_free(&frame);
     av_frame_free(&frame_rgb);
     av_packet_free(&packet);
@@ -221,8 +220,8 @@ void receiveLoop(void* callbackData, unsigned char** image, int* out_width, int*
             while (avcodec_receive_frame(codec_ctx, frame) == 0)
             {
                 ret = sws_scale(sws_ctx,
-                    (uint8_t const * const *)frame->data,
-                    frame->linesize, 0, codec_ctx->height,
+                    (uint8_t const * const *)frame->data, frame->linesize,
+                    0, codec_ctx->height,
                     frame_rgb->data, frame_rgb->linesize
                 );
 
