@@ -50,21 +50,21 @@ int main(int argc, char **argv)
 {
     const int WIDTH = 352, HEIGHT = 288;
     const int LINE_SIZE = WIDTH * 4;
-    int sockfd = create_server();
+    uint8_t *rgba_data = (uint8_t *)malloc(WIDTH * HEIGHT * 4);
+
     Encoder encoder{
-        WIDTH, HEIGHT,400000,
+        WIDTH, HEIGHT, 400000,
         AV_CODEC_ID_MPEG2VIDEO,
         AV_PIX_FMT_YUV422P
     };
+    int sockfd = create_server();
 
-    uint8_t *rgba_data = (uint8_t *)malloc(WIDTH * HEIGHT * 4);
 
-    int i, x, y;
-    for (i = 0; i < 25 * 50; i++)
+    for (int i = 0; i < 25 * 50; i++)
     {
         /* RGBA */
-        for (y = 0; y < HEIGHT; y++) {
-            for (x = 0; x < WIDTH; x++) {
+        for (int y = 0; y < HEIGHT; y++) {
+            for (int x = 0; x < WIDTH; x++) {
                 rgba_data[y * LINE_SIZE + x * 4 + 0] = x % 255;
                 rgba_data[y * LINE_SIZE + x * 4 + 1] = y % 255;
                 rgba_data[y * LINE_SIZE + x * 4 + 2] = i % 255;
