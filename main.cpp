@@ -58,17 +58,17 @@ void receiveLoop(void* callbackData, unsigned char** image, int* out_width, int*
 {
     Decoder* decoder = (Decoder*) callbackData;
     decoder->GetLatestFrame(image, out_width, out_height);
-}
+}                                                                                    
 
 int main(int argc, char *argv[])
 {
     const char *input_filename = "/home/zekailin00/Desktop/decoder/HW3.mp4";
 
-    // int fd = connectServer();
-    // Decoder decoder(&fd, readSocket);
+    int fd = connectServer();
+    Decoder decoder(&fd, readSocket);
 
-    FILE* fd = fopen(input_filename, "rb");
-    Decoder decoder(&fd, readFile);
+    // FILE* fd = fopen(input_filename, "rb");
+    // Decoder decoder(&fd, readFile);
 
     renderLoop(receiveLoop, &decoder);
 
