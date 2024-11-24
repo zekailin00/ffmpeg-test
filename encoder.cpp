@@ -12,7 +12,10 @@ extern "C"
 #include <string.h>
 
 
-Encoder::Encoder(int width, int height, int64_t bit_rate, AVCodecID codec_id)
+Encoder::Encoder(
+    int width, int height, int64_t bit_rate,
+    AVCodecID codec_id, AVPixelFormat pixelFormat):
+    PIX_FMT(pixelFormat)
 {
     this->width = width;
     this->height = height;
@@ -22,13 +25,13 @@ Encoder::Encoder(int width, int height, int64_t bit_rate, AVCodecID codec_id)
     codec = avcodec_find_encoder(codec_id);
     if (!codec) {
         fprintf(stderr, "Codec not found\n");
-        return;
+        throw "Codec not found";
     }
 
     enc_ctx = avcodec_alloc_context3(codec);
     if (!enc_ctx) {
         fprintf(stderr, "Could not allocate video codec context\n");
-        return;
+        throw "Could not allocate video codec context";
     }
 
     // Set encoding parameters 
@@ -37,7 +40,7 @@ Encoder::Encoder(int width, int height, int64_t bit_rate, AVCodecID codec_id)
     enc_ctx->height = height;
     enc_ctx->gop_size = 10;
     enc_ctx->max_b_frames = 1;
-    enc_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+    enc_ctx->pix_fmt = Encoder::PIX_FMT;
 
     // FIXME: variable framerate
     enc_ctx->time_base = (AVRational){1, 25};
@@ -47,7 +50,7 @@ Encoder::Encoder(int width, int height, int64_t bit_rate, AVCodecID codec_id)
     if (avcodec_open2(enc_ctx, codec, NULL) < 0)
     {
         fprintf(stderr, "Could not open codec\n");
-        return;
+        throw "Could not open codec";
     }
 
     // Allocate video frame
@@ -55,7 +58,7 @@ Encoder::Encoder(int width, int height, int64_t bit_rate, AVCodecID codec_id)
     if (!frame)
     {
         fprintf(stderr, "Could not allocate video frame\n");
-        return;
+        throw "Could not allocate video frame";
     }
 
     frame->format = enc_ctx->pix_fmt;
@@ -64,33 +67,26 @@ Encoder::Encoder(int width, int height, int64_t bit_rate, AVCodecID codec_id)
 
     sws_ctx = sws_getContext(
         width, height, AV_PIX_FMT_RGBA,
-        width, height, AV_PIX_FMT_YUV420P,
+        width, height, Encoder::PIX_FMT,
         SWS_BILINEAR, NULL, NULL, NULL
     );
-
-    sws_ctx_yuv_rgba = sws_getContext(
-        width, height, AV_PIX_FMT_YUV420P,
-        width, height, AV_PIX_FMT_RGBA,
-        SWS_BILINEAR, NULL, NULL, NULL
-    );
-
     if (!sws_ctx) {
         fprintf(stderr, "Could not initialize the conversion context\n");
-        return;
+        throw "Could not initialize the conversion context";
     }
 
     int ret;
     ret = av_frame_get_buffer(frame, 0);
     if (ret < 0) {
         fprintf(stderr, "Could not allocate the video frame data\n");
-        exit(1);
+        throw "Could not allocate the video frame data";
     }
 
     pkt = av_packet_alloc();
     if (!pkt)
     {
         fprintf(stderr, "Could not allocate packet\n");
-        return;
+        throw "Could not allocate packet";
     }
 
     output_size = 0;
@@ -98,7 +94,7 @@ Encoder::Encoder(int width, int height, int64_t bit_rate, AVCodecID codec_id)
     if (!output_data)
     {
         fprintf(stderr, "Failed to allocate memory for encoded data\n");
-        return;
+        throw "Failed to allocate memory for encoded data";
     }
 }
 
@@ -163,59 +159,10 @@ int Encoder::EncodeFrame(uint8_t** rgba_data, uint8_t **packets_data)
         return ret;
     }
 
-    int srcStride[4] = { width * 4 , 0, 0, 0}; 
+    int srcStride[4] = {width * 4 , 0, 0, 0}; 
     ret = sws_scale(sws_ctx, rgba_data,
         srcStride, 0, height, frame->data, frame->linesize
     );
-
-    int srcStride2[4] = { width , width / 2, width / 2, 0};
-    int tmp_linesize[4] = { width , width / 2, width / 2, 0};
-    uint8_t* tmp_data[8];
-    tmp_data[0] = (uint8_t*) malloc(width * height);
-    tmp_data[1] = (uint8_t*) malloc(width * height);
-    tmp_data[2] = (uint8_t*) malloc(width * height);
-    sws_scale(sws_ctx_yuv_rgba, frame->data, frame->linesize,
-        0, height, tmp_data, tmp_linesize
-    );
-
-    fflush(stdout);
-
-    // /* Make sure the frame data is writable.
-    //     On the first round, the frame is fresh from av_frame_get_buffer()
-    //     and therefore we know it is writable.
-    //     But on the next rounds, encode() will have called
-    //     avcodec_send_frame(), and the codec may have kept a reference to
-    //     the frame in its internal structures, that makes the frame
-    //     unwritable.
-    //     av_frame_make_writable() checks that and allocates a new buffer
-    //     for the frame only if necessary.
-    //     */
-    // ret = av_frame_make_writable(frame);
-    // if (ret < 0)
-    //     exit(1);
-
-    // /* Prepare a dummy image.
-    //     In real code, this is where you would have your own logic for
-    //     filling the frame. FFmpeg does not care what you put in the
-    //     frame.
-    //     */
-    // /* Y */
-    // for (int y = 0; y < height; y++) {
-    //     for (int x = 0; x < width; x++) {
-    //         frame->data[0][y * frame->linesize[0] + x] = x + y + (i % 25) * 3;
-    //     }
-    // }
-
-    // /* Cb and Cr */
-    // for (int y = 0; y < height/2; y++) {
-    //     for (int x = 0; x < width/2; x++) {
-    //         frame->data[1][y * frame->linesize[1] + x] = 128 + y + (i % 25) * 2;
-    //         frame->data[2][y * frame->linesize[2] + x] = 64 + x + (i % 25) * 5;
-    //     }
-    // }
-
-    // frame->pts = i++;
-
     if (ret < 0)
     {
         fprintf(stderr, "Error while converting RGBA to YUV420P\n");
@@ -250,17 +197,3 @@ Encoder::~Encoder()
     av_packet_free(&pkt);
     free(output_data);
 }
-
-// int main() {
-   
-//     uint8_t* rgba_data = (uint8_t *)malloc(640 * 480 * 4);
-//     memset(rgba_data, 0, 640 * 480 * 4);
-//     const AVCodecID codec_id = AV_CODEC_ID_H264;
-//     Encoder encoder(640, 480, 400000, codec_id);
-//     uint8_t *output_data;
-//     for(int i = 0; i < 45; i += 1) {
-//         encoder.EncodeFrame(rgba_data, &output_data);
-//     }
-
-//     return 0;
-// }

@@ -14,7 +14,7 @@ extern "C"
 class Encoder
 {
 public:
-    Encoder(int width, int height, int64_t bit_rate, AVCodecID codec_id);
+    Encoder(int width, int height, int64_t bit_rate, AVCodecID codec_id, AVPixelFormat PIX_FMT);
     ~Encoder();
     
     /**
@@ -30,7 +30,6 @@ private:
     AVCodecContext *enc_ctx;
     const AVCodec *codec;
     SwsContext *sws_ctx;
-    SwsContext * sws_ctx_yuv_rgba;
     AVFrame *frame;
     AVPacket *pkt;
 
@@ -39,6 +38,8 @@ private:
 
     int width, height;
     int frame_index;
+
+    const AVPixelFormat PIX_FMT;
 
     static int encode(
         AVCodecContext *enc_ctx, AVFrame *frame, AVPacket *pkt, 
