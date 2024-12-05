@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+#include "decoder.h"
 #include "encoder.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -46,35 +47,45 @@ void close_server(int sockfd)
     close(sockfd);
 }
 
+int readFile(void *opaque, uint8_t *buf, int buf_size)
+{
+    FILE* f = *static_cast<FILE**>(opaque);
+    ssize_t readSize = fread(buf, 1, buf_size, f);
+    printf("file read size: %u; actual read size: %zu\n", buf_size, readSize);
+
+    if (!readSize)
+        return AVERROR_EOF;
+    
+    return FFMIN(buf_size, readSize);
+}
+
 int main(int argc, char **argv)
 {
-    const int WIDTH = 352, HEIGHT = 288;
-    const int LINE_SIZE = WIDTH * 4;
-    uint8_t *rgba_data = (uint8_t *)malloc(WIDTH * HEIGHT * 4);
+    const char *input_filename = "/home/zekailin00/Desktop/decoder/Big_Buck_Bunny_1080_10s_30MB.mp4";
+    FILE* fd = fopen(input_filename, "rb");
+    Decoder decoder(&fd, readFile);
+
+    unsigned char* image;
+    int out_width;
+    int out_height;
+    while(!decoder.GetLatestFrame(&image, &out_width, &out_height));
 
     Encoder encoder{
-        WIDTH, HEIGHT, 400000,
-        AV_CODEC_ID_MPEG2VIDEO,
+        out_width, out_height, 100000,
+        AV_CODEC_ID_H264,
         AV_PIX_FMT_YUV422P
     };
     int sockfd = create_server();
 
-
-    for (int i = 0; i < 25 * 50; i++)
+    int max_frames = 1000;
+    while (max_frames--)
     {
-        /* RGBA */
-        for (int y = 0; y < HEIGHT; y++) {
-            for (int x = 0; x < WIDTH; x++) {
-                rgba_data[y * LINE_SIZE + x * 4 + 0] = x % 255;
-                rgba_data[y * LINE_SIZE + x * 4 + 1] = y % 255;
-                rgba_data[y * LINE_SIZE + x * 4 + 2] = i % 255;
-                rgba_data[y * LINE_SIZE + x * 4 + 3] = 255;
-            }
-        }
+        if (!decoder.GetLatestFrame(&image, &out_width, &out_height))
+            continue;
 
         /* encode the image */
         uint8_t* packets_data = nullptr;
-        int size = encoder.EncodeFrame(&rgba_data, &packets_data);
+        int size = encoder.EncodeFrame(&image, &packets_data);
 
         if (size != 0 && packets_data != nullptr)
             send(clientSocket, packets_data, size, 0);

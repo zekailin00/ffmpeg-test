@@ -35,19 +35,27 @@ Encoder::Encoder(
     }
 
     // Set encoding parameters 
-    enc_ctx->bit_rate = bit_rate;
+    AVDictionary *opts = NULL;
+    av_dict_set(&opts, "aq-mode", "1", 0);
+    // av_dict_set(&opts, "profile", "main", 0);
+    av_dict_set(&opts, "tune", "zerolatency", 0);
+    av_dict_set(&opts, "preset", "ultrafast", 0);
+    av_dict_set(&opts, "crf", "28", 0);
+
+    // enc_ctx->bit_rate = bit_rate; // automatically switch to X264_RC_ABR when set
+    // enc_ctx->rc_max_rate = bit_rate;
     enc_ctx->width = width;
     enc_ctx->height = height;
-    enc_ctx->gop_size = 10;
-    enc_ctx->max_b_frames = 1;
+    // enc_ctx->gop_size = 10;
+    // enc_ctx->max_b_frames = 1;
     enc_ctx->pix_fmt = Encoder::PIX_FMT;
 
     // FIXME: variable framerate
-    enc_ctx->time_base = (AVRational){1, 25};
-    enc_ctx->framerate = (AVRational){25, 1};
+    enc_ctx->time_base = (AVRational){1, 5};
+    enc_ctx->framerate = (AVRational){5, 1};
 
     // Open the codec
-    if (avcodec_open2(enc_ctx, codec, NULL) < 0)
+    if (avcodec_open2(enc_ctx, codec, &opts) < 0)
     {
         fprintf(stderr, "Could not open codec\n");
         throw "Could not open codec";
@@ -148,6 +156,73 @@ int Encoder::encode(
 
 static int i = 0;
 
+#include <libavutil/frame.h>
+#include <libavutil/mem.h>
+
+void set_regions_of_interest(AVFrame *frame, int width, int height) {
+    // Number of regions
+    int num_rois = 1;
+    
+    // Allocate memory for regions
+    AVRegionOfInterest *rois = (AVRegionOfInterest*)av_calloc(num_rois, sizeof(AVRegionOfInterest));
+    if (!rois) {
+        fprintf(stderr, "Failed to allocate memory for ROIs\n");
+        return;
+    }
+    
+    // Define a single ROI
+    rois[0].top = height / 4;
+    rois[0].bottom = height / 4 * 3;
+    rois[0].left = width / 4;
+    rois[0].right = width / 4 * 3;
+    rois[0].self_size = sizeof(AVRegionOfInterest);
+    rois[0].qoffset = {2, 3}; // Higher quality for this region
+
+    // Add the ROI data to the frame
+    AVFrameSideData *side_data = av_frame_new_side_data(
+        frame, AV_FRAME_DATA_REGIONS_OF_INTEREST,
+        num_rois * sizeof(AVRegionOfInterest)
+    );
+    if (!side_data) {
+        fprintf(stderr, "Failed to allocate side data for ROIs\n");
+        av_free(rois);
+        return;
+    }
+    memcpy(side_data->data, rois, num_rois * sizeof(AVRegionOfInterest));
+
+    // Free the temporary ROI data
+    av_free(rois);
+}
+
+void set_foveation(AVFrame *frame) {
+
+    AVFoveationInfo *fov = (AVFoveationInfo*)av_calloc(1, sizeof(AVFoveationInfo));
+    if (!fov) {
+        fprintf(stderr, "Failed to allocate memory for foveation\n");
+        return;
+    }
+    
+    // Define a single ROI
+    fov->xFix = 0.5f;
+    fov->yFix = 0.5f;
+    fov->delta = 30.0f;
+    fov->sigma = 0.2f;
+
+    // Add the ROI data to the frame
+    AVFrameSideData *side_data = av_frame_new_side_data(
+        frame, AV_FRAME_DATA_REGIONS_OF_INTEREST, sizeof(AVFoveationInfo)
+    );
+    if (!side_data) {
+        fprintf(stderr, "Failed to allocate side data for foveation\n");
+        av_free(fov);
+        return;
+    }
+    memcpy(side_data->data, fov, sizeof(AVFoveationInfo));
+
+    // Free the temporary foveation data
+    av_free(fov);
+}
+
 int Encoder::EncodeFrame(uint8_t** rgba_data, uint8_t **packets_data)
 {
     int ret;
@@ -168,6 +243,9 @@ int Encoder::EncodeFrame(uint8_t** rgba_data, uint8_t **packets_data)
         fprintf(stderr, "Error while converting RGBA to YUV420P\n");
         return -1;
     }
+
+    // set_regions_of_interest(frame, width, height);
+    // set_foveation(frame);
     
     frame->pts = frame_index++;
     output_size = 0;
@@ -197,3 +275,37 @@ Encoder::~Encoder()
     av_packet_free(&pkt);
     free(output_data);
 }
+
+
+
+/**
+ * 
+ * 
+static int setup_roi(AVCodecContext *ctx, x264_picture_t *pic,
+                    const AVFrame *frame, const uint8_t *data, size_t size)
+    ...
+    if (size == sizeof(AVFoveationInfo))
+    {
+        // Foveated Video Encoding 
+        const AVFoveationInfo* foveation = (const AVFoveationInfo*)data;
+        qoffsets = av_calloc(mbx * mby, sizeof(*qoffsets));
+        if (!qoffsets)
+            return AVERROR(ENOMEM);
+
+        float x_fix = foveation->xFix, y_fix = foveation->yFix;
+        float sigma = foveation->sigma, delta = foveation->delta;
+
+        x_fix = x_fix * mbx;
+        y_fix = y_fix * mby;
+        sigma =  sigma * sqrt(pow(mbx, 2) + pow(mby, 2));
+
+        for (int x = 0; x < mbx; x++) {
+            for (int y = 0; y < mby; y++) {
+                float gaussian = exp( - (pow(x - x_fix, 2) + pow(y - y_fix, 2)) / pow(sigma, 2));
+                qoffsets[x + y * mbx] = av_clipf(delta * (1 - gaussian), 0, +qp_range);
+            }
+        }
+        goto FVE_END;
+    }
+
+ */
