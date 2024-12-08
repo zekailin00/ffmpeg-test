@@ -71,9 +71,8 @@ int main(int argc, char **argv)
     while(!decoder.GetLatestFrame(&image, &out_width, &out_height));
 
     Encoder encoder{
-        out_width, out_height, 100000,
-        AV_CODEC_ID_H264,
-        AV_PIX_FMT_YUV422P
+        out_width, out_height, 28, 15,
+        AV_CODEC_ID_H264, AV_PIX_FMT_YUV422P
     };
     int sockfd = create_server();
 
@@ -85,6 +84,8 @@ int main(int argc, char **argv)
 
         /* encode the image */
         uint8_t* packets_data = nullptr;
+        encoder.SetFixation(0.2, 0.2, 0.8, 0.8);
+        encoder.SetFoveationProp(25, 0.1);
         int size = encoder.EncodeFrame(&image, &packets_data);
 
         if (size != 0 && packets_data != nullptr)
